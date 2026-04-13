@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction History | Academic Predictor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    <style>
+        /* History-page extras */
+        .history-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:2rem}
+        .history-meta{color:var(--text-muted);font-size:.9rem;margin-top:.35rem}
+        .filter-bar{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;align-items:center}
+        .filter-bar select{width:auto;min-width:160px}
+        .filter-bar input[type="text"]{width:auto;min-width:200px}
+        .count-pill{font-size:.82rem;color:var(--text-muted);padding:.3rem .8rem;background:var(--bg-card);border:1px solid var(--border);border-radius:50px}
+        /* Charts row on history page */
+        .h-charts{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:2rem}
+        @media(max-width:640px){.h-charts{grid-template-columns:1fr}.filter-bar input[type="text"]{width:100%}.filter-bar select{width:100%}.history-header{flex-direction:column}}
+        /* Pagination */
+        .pagination{display:flex;gap:.5rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap}
+        .page-btn{padding:.4rem .9rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-muted);cursor:pointer;font-size:.85rem;transition:all .2s}
+        .page-btn:hover,.page-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+        /* Row animation */
+        @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        #historyBody tr{animation:fadeIn .25s ease forwards}
+    </style>
+</head>
+<body>
+<div class="dashboard">
+
+    <!-- Back button -->
+    <a href="/" class="btn-back"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+
+    <!-- Header -->
+    <div class="history-header">
+        <div>
+            <h1 style="font-size:clamp(1.3rem,3vw,1.9rem)">
+                <i class="fas fa-history" style="color:var(--primary-light)"></i>
+                Prediction History
+            </h1>
+            <p class="history-meta">All predictions logged from the Academic Performance Predictor</p>
+        </div>
+        <div id="best-model-badge" class="best-badge hidden">
+            <i class="fas fa-trophy"></i>
+            <div>
+                <span class="badge-label">Records</span>
+                <span id="totalCount">—</span> total
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Charts -->
+    <div class="h-charts">
+        <div class="glass-panel chart-container">
+            <h3><i class="fas fa-chart-pie"></i> Outcome Distribution</h3>
+            <canvas id="outcomePie" style="max-height:220px"></canvas>
+        </div>
+        <div class="glass-panel chart-container">
+            <h3><i class="fas fa-sliders-h"></i> Avg Confidence by Model</h3>
+            <canvas id="confBar" style="max-height:220px"></canvas>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <input type="text" id="searchInput" placeholder="🔍  Search by model or result…">
+        <select id="filterModel">
+            <option value="">All Models</option>
+            <option>Logistic Regression</option>
+            <option>Decision Tree</option>
+            <option>KNN</option>
+            <option>Random Forest</option>
+            <option>Gradient Boosting</option>
+        </select>
+        <select id="filterResult">
+            <option value="">All Results</option>
+            <option value="PASS">PASS</option>
+            <option value="FAIL">FAIL</option>
+        </select>
+        <span class="count-pill" id="rowCountPill">0 records</span>
+    </div>
+
+    <!-- Table -->
+    <div class="glass-panel">
+        <div class="table-wrapper">
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Timestamp</th>
+                        <th>Model</th>
+                        <th>Att %</th>
+                        <th>Study Hrs</th>
+                        <th>Internal /50</th>
+                        <th>Assign /50</th>
+                        <th>GPA /10</th>
+                        <th>Result</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+</div>
+<script>
+const PER_PAGE = 20;
+let allLogs = [];
+let filteredLogs = [];
+let currentPage = 1;
+let outcomePie = null, confBar = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadHistory();
+    setupFilters();
+});
+
+async function loadHistory() {
+    try {
+        const res  = await fetch('/history-all');
+        allLogs    = await res.json();
+        filteredLogs = [...allLogs];
+
+        document.getElementById('best-model-badge').classList.remove('hidden');
+        document.getElementById('totalCount').textContent = allLogs.length;
+
+        renderTable();
+        buildSummaryCharts();
+    } catch(e) {
+        document.getElementById('historyBody').innerHTML =
+            `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--fail)">Failed to load history.</td></tr>`;
+    }
+}
+
+function setupFilters() {
+    ['searchInput','filterModel','filterResult'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
+    });
+}
+
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const model  = document.getElementById('filterModel').value;
+    const result = document.getElementById('filterResult').value;
+
+    filteredLogs = allLogs.filter(log => {
+        const matchModel  = !model  || log.model_used === model;
+        const matchResult = !result || log.prediction === result;
+        const matchSearch = !search || log.model_used.toLowerCase().includes(search) || log.prediction.toLowerCase().includes(search);
+        return matchModel && matchResult && matchSearch;
+    });
+
+    currentPage = 1;
+    renderTable();
+}
+
+function renderTable() {
+    const start  = (currentPage - 1) * PER_PAGE;
+    const rows   = filteredLogs.slice(start, start + PER_PAGE);
+    const tbody  = document.getElementById('historyBody');
+
+    document.getElementById('rowCountPill').textContent = `${filteredLogs.length} record${filteredLogs.length !== 1 ? 's' : ''}`;
+
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted)"><i class="fas fa-inbox"></i> No records found</td></tr>`;
+        document.getElementById('pagination').innerHTML = '';
+        return;
+    }
+
+    tbody.innerHTML = rows.map((log, i) => {
+        const cls  = log.prediction === 'PASS' ? 'pass' : 'fail';
+        const time = new Date(log.timestamp).toLocaleString();
+        const num  = start + i + 1;
+        return `<tr style="animation-delay:${i * 0.03}s">
+            <td style="color:var(--text-muted)">${num}</td>
+            <td style="font-size:.8rem">${time}</td>
+            <td style="font-weight:600">${log.model_used}</td>
+            <td>${log.attendance}%</td>
+            <td>${log.study_hours}</td>
+            <td>${log.internal_marks}</td>
+            <td>${log.assignments}</td>
+            <td>${log.previous_gpa}</td>
+            <td><span class="badge-sm ${cls}">${log.prediction}</span></td>
+            <td><strong style="color:${cls === 'pass' ? 'var(--accent)' : 'var(--fail)'}">${log.confidence.toFixed(1)}%</strong></td>
+        </tr>`;
+    }).join('');
+
+    renderPagination();
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(filteredLogs.length / PER_PAGE);
+    const pg = document.getElementById('pagination');
+    if (totalPages <= 1) { pg.innerHTML = ''; return; }
+
+    let html = '';
+    for (let i = 1; i <= totalPages; i++) {
+        html += `<button class="page-btn${i === currentPage ? ' active' : ''}" onclick="goPage(${i})">${i}</button>`;
+    }
+    pg.innerHTML = html;
+}
+
+function goPage(n) {
+    currentPage = n;
+    renderTable();
+    window.scrollTo({top: document.querySelector('.glass-panel').offsetTop - 80, behavior: 'smooth'});
+}
+
+function buildSummaryCharts() {
+    if (typeof Chart === 'undefined') { setTimeout(buildSummaryCharts, 200); return; }
+    Chart.defaults.color = '#8892B0';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.07)';
+
+    // Outcome pie
+    const passes = allLogs.filter(l => l.prediction === 'PASS').length;
+    const fails  = allLogs.length - passes;
+    if (outcomePie) outcomePie.destroy();
+    outcomePie = new Chart(document.getElementById('outcomePie'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Pass','Fail'],
+            datasets: [{
+                data: [passes, fails],
+                backgroundColor: ['rgba(34,197,94,.75)','rgba(239,68,68,.75)'],
+                borderColor: ['#22C55E','#EF4444'],
+                borderWidth: 1.5, hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'right', labels: { padding: 12, font: { size: 11 } } },
+                tooltip: { callbacks: { label: c => ` ${c.raw} (${((c.raw/allLogs.length)*100).toFixed(1)}%)` } }
+            }
+        }
+    });
+
+    // Avg confidence per model bar
+    const models = {};
+    allLogs.forEach(l => {
+        if (!models[l.model_used]) models[l.model_used] = [];
+        models[l.model_used].push(l.confidence);
+    });
+    const mLabels = Object.keys(models);
+    const mAvg    = mLabels.map(m => (models[m].reduce((a,v) => a+v, 0) / models[m].length).toFixed(1));
+
+    if (confBar) confBar.destroy();
+    confBar = new Chart(document.getElementById('confBar'), {
+        type: 'bar',
+        data: {
+            labels: mLabels,
+            datasets: [{
+                label: 'Avg Confidence (%)',
+                data: mAvg,
+                backgroundColor: 'rgba(79,70,229,.7)',
+                borderRadius: 6, borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                y: { min: 50, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,.05)' } },
+                x: { grid: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+</script>
+</body>
+</html>

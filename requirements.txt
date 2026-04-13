@@ -1,0 +1,7 @@
+Flask
+supabase
+scikit-learn
+pandas
+numpy
+psycopg2-binary
+python-dotenv

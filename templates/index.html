@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Academic Performance Predictor | ML Dashboard</title>
+    <meta name="description" content="AI-powered student academic performance predictor using ensemble machine learning models.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+</head>
+<body>
+<div class="dashboard">
+
+    <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+    <header>
+        <div class="header-left">
+            <div class="header-icon"><i class="fas fa-graduation-cap"></i></div>
+            <div>
+                <h1>Student Academic Prediction <span>using Ensemble Learning</span></h1>
+                <p>AI-powered outcome analysis with 5 ensemble machine learning algorithms.</p>
+            </div>
+        </div>
+        <div id="best-model-badge" class="best-badge hidden">
+            <i class="fas fa-trophy"></i>
+            <div>
+                <span class="badge-label">Best Model</span>
+                <span id="best-model-name">—</span>
+                <span class="badge-acc" id="best-model-acc"></span>%
+            </div>
+        </div>
+    </header>
+
+    <!-- ══ STAT PILLS ═══════════════════════════════════════════════════════ -->
+    <div class="stat-pills" id="statPills">
+        <div class="pill"><i class="fas fa-database"></i> <span id="statTotal">—</span> Students</div>
+        <div class="pill pass-pill"><i class="fas fa-check-circle"></i> <span id="statPass">—</span> Passed</div>
+        <div class="pill fail-pill"><i class="fas fa-times-circle"></i> <span id="statFail">—</span> Failed</div>
+        <div class="pill"><i class="fas fa-robot"></i> 5 Models Trained</div>
+    </div>
+
+    <!-- ══ MODEL CARDS ══════════════════════════════════════════════════════ -->
+    <section class="section-block">
+        <div class="section-header">
+            <h2><i class="fas fa-cubes"></i> Model Leaderboard</h2>
+            <span class="section-sub">Click a card to auto-select the model</span>
+        </div>
+        <div class="models-grid" id="models-grid">
+            <div class="model-card skeleton"></div>
+            <div class="model-card skeleton"></div>
+            <div class="model-card skeleton"></div>
+            <div class="model-card skeleton"></div>
+            <div class="model-card skeleton"></div>
+        </div>
+    </section>
+
+    <!-- ══ PREDICT + RESULT ══════════════════════════════════════════════ -->
+    <section class="section-block">
+        <div class="section-header">
+            <h2><i class="fas fa-magic"></i> Predict Performance</h2>
+            <span class="section-sub">Fill in the student profile below</span>
+        </div>
+        <div class="predict-grid">
+
+            <!-- Form -->
+            <div class="glass-panel form-panel">
+                <form id="prediction-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="modelSelect"><i class="fas fa-brain"></i> Select Model</label>
+                        <select id="modelSelect" required>
+                            <option value="" disabled selected>Loading models…</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="attendance"><i class="fas fa-calendar-check"></i> Attendance (%)</label>
+                            <input type="number" id="attendance" min="0" max="100" required placeholder="e.g. 85">
+                        </div>
+                        <div class="form-group">
+                            <label for="study_hours"><i class="fas fa-clock"></i> Study Hours/week</label>
+                            <input type="number" step="0.1" id="study_hours" min="0" required placeholder="e.g. 5.5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="internal_marks"><i class="fas fa-file-alt"></i> Internal Marks /50</label>
+                            <input type="number" id="internal_marks" min="0" max="50" required placeholder="e.g. 42">
+                        </div>
+                        <div class="form-group">
+                            <label for="assignments"><i class="fas fa-tasks"></i> Assignment Score /50</label>
+                            <input type="number" id="assignments" min="0" max="50" required placeholder="e.g. 45">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="previous_gpa"><i class="fas fa-star"></i> Previous GPA /10</label>
+                        <input type="number" step="0.1" id="previous_gpa" min="0" max="10" required placeholder="e.g. 8.2">
+                    </div>
+                    <button type="submit" class="btn-predict" id="predictBtn">
+                        <span id="btn-text"><i class="fas fa-rocket"></i> Run Prediction</span>
+                        <div class="spinner hidden" id="predictSpinner"></div>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Result Panel -->
+            <div class="result-col">
+                <div class="glass-panel result-card" id="resultCard">
+                    <div class="initial-msg" id="initialMsg">
+                        <div class="idle-icon"><i class="fas fa-robot"></i></div>
+                        <p>Fill in the form and run a prediction</p>
+                        <span>Results will appear here</span>
+                    </div>
+                    <div class="result-content hidden" id="resultContent">
+                        <div class="result-header">
+                            <h4>Prediction Result</h4>
+                            <span class="model-chip" id="res-model-chip">—</span>
+                        </div>
+                        <div class="result-badge" id="resultBadge">PASS</div>
+                        <div class="prob-bars">
+                            <div class="prob-row">
+                                <span>Pass</span>
+                                <div class="bar-track">
+                                    <div class="bar-fill pass-bar" id="passBar" style="width:0%"></div>
+                                </div>
+                                <strong id="res-pass-prob">0%</strong>
+                            </div>
+                            <div class="prob-row">
+                                <span>Fail</span>
+                                <div class="bar-track">
+                                    <div class="bar-fill fail-bar" id="failBar" style="width:0%"></div>
+                                </div>
+                                <strong id="res-fail-prob">0%</strong>
+                            </div>
+                        </div>
+                        <div class="gauge-container">
+                            <canvas id="gaugeChart"></canvas>
+                            <div class="gauge-label" id="gaugeLabel">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student Radar Profile (shows after predict) -->
+                <div class="glass-panel radar-panel hidden" id="radarPanel">
+                    <h4><i class="fas fa-spider"></i> Student Profile Radar</h4>
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══ SHAP EXPLANATION ══════════════════════════════════════════════ -->
+    <section class="section-block hidden" id="shapSection">
+        <div class="section-header">
+            <h2><i class="fas fa-microscope"></i> Explainable AI (SHAP-style)</h2>
+            <span class="section-sub">Feature contribution to this specific prediction vs. average student</span>
+        </div>
+        <div class="glass-panel">
+            <canvas id="shapChart"></canvas>
+        </div>
+    </section>
+
+    <!-- ══ AI ADVISOR ════════════════════════════════════════════════════ -->
+    <section class="section-block hidden" id="advisorSection">
+        <div class="section-header">
+            <h2><i class="fas fa-user-graduate"></i> AI Academic Advisor</h2>
+            <span class="section-sub">Auto-generated recommendations based on your profile</span>
+        </div>
+        <div class="advisor-grid" id="advisorGrid">
+            <!-- Injected by JS -->
+        </div>
+    </section>
+
+    <!-- ══ CHARTS ROW ════════════════════════════════════════════════════ -->
+    <section class="section-block">
+        <div class="section-header">
+            <h2><i class="fas fa-chart-bar"></i> Data Insights</h2>
+            <span class="section-sub">Dataset and model analytics</span>
+        </div>
+        <div class="charts-grid">
+            <div class="glass-panel chart-container">
+                <h3><i class="fas fa-medal"></i> Model Accuracy</h3>
+                <canvas id="accuracyChart"></canvas>
+            </div>
+            <div class="glass-panel chart-container">
+                <h3><i class="fas fa-weight-hanging"></i> Feature Importance</h3>
+                <canvas id="featureChart"></canvas>
+            </div>
+            <div class="glass-panel chart-container">
+                <h3><i class="fas fa-pie-chart"></i> Pass / Fail Distribution</h3>
+                <canvas id="distChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══ HISTORY LINK ══════════════════════════════════════════════════ -->
+    <div class="history-link-bar">
+        <div class="section-header" style="margin-bottom:0">
+            <h2><i class="fas fa-history"></i> Prediction History</h2>
+            <span class="section-sub">All past predictions are stored in Supabase</span>
+        </div>
+        <a href="/history-page" class="btn-history">
+            <i class="fas fa-table"></i> View Full History
+        </a>
+    </div>
+
+</div><!-- /dashboard -->
+<script src="/static/script.js"></script>
+</body>
+</html>

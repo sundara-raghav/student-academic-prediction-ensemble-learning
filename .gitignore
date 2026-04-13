@@ -1,0 +1,49 @@
+# ── Credentials & Secrets ─────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python Cache ──────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# ── Virtual Environments ──────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+.virtualenv/
+
+# ── Trained ML Models (large binaries) ───────────────
+models/*.pkl
+
+# ── Jupyter Notebooks ────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── IDE / Editor Configs ─────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ── OS Files ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Build / Distribution ─────────────────────────────
+dist/
+build/
+*.egg-info/
+
+# ── Logs ─────────────────────────────────────────────
+*.log
+logs/
+
+# ── Dataset (optional — remove if you want to track) ──
+dataset/
+*.csv
