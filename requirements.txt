@@ -1,5 +1,6 @@
 Flask
 supabase
+gunicorn
 scikit-learn
 pandas
 numpy
