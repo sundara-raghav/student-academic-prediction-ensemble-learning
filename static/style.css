@@ -99,6 +99,14 @@ header>div>p,header p{color:var(--text-muted);font-size:.95rem;margin-top:.35rem
 .pill i{opacity:.7}
 .pass-pill{border-color:rgba(34,197,94,.3);color:var(--accent)}
 .fail-pill{border-color:rgba(239,68,68,.3);color:var(--fail)}
+.warning-pill{
+    border-color:rgba(245, 158, 11, 0.4);
+    color:var(--warn);
+    background:linear-gradient(135deg,rgba(245,158,11,.1),rgba(245,158,11,.05));
+    box-shadow:0 0 15px rgba(245,158,11,.15);
+    animation:bpulseWarning 2s infinite;
+}
+@keyframes bpulseWarning{0%,100%{box-shadow:0 0 10px rgba(245,158,11,.15)}50%{box-shadow:0 0 20px rgba(245,158,11,.3)}}
 
 /* ═══════════════════════════════════════════════════
    GLASS PANEL
@@ -175,6 +183,7 @@ input,select {
     color:var(--text);padding:.8rem 1rem;border-radius:var(--radius-sm);
     outline:none;transition:border-color .2s,box-shadow .2s;font-size:.95rem;
     -webkit-appearance:none;
+    appearance:none;
 }
 input:focus,select:focus{border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
 select option{background:#0A0F1E}

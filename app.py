@@ -24,18 +24,6 @@ BASELINE = [75.0, 5.0, 30.0, 30.0, 7.0]
 
 loaded_models = {}
 
-# ─── Pre-warm all models at startup (eliminates first-prediction cold start) ─
-def _preload_models():
-    for name, filename in MODEL_FILES.items():
-        filepath = os.path.join('models', filename)
-        if os.path.exists(filepath):
-            with open(filepath, 'rb') as f:
-                loaded_models[name] = pickle.load(f)
-            print(f"  [preload] {name} ready")
-
-# Also cache /stats result so repeated calls don't hit Supabase every time
-_stats_cache = {"data": None}
-
 def get_model(model_name):
     return loaded_models.get(model_name)
 
@@ -196,24 +184,68 @@ def get_feature_importance():
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
-    # Return cached result if available to avoid hitting Supabase on every page load
-    if _stats_cache["data"]:
-        return jsonify(_stats_cache["data"])
+    # Read trained-on watermark
+    trained_size = None
+    if os.path.exists('models/dataset_size.txt'):
+        with open('models/dataset_size.txt', 'r') as f:
+            try: trained_size = int(f.read().strip())
+            except: pass
+
     try:
-        response = supabase.table('students_dataset').select('result').execute()
-        raw      = response.data
-        result   = {
-            "pass":  sum(1 for r in raw if r['result'] == 1),
-            "fail":  sum(1 for r in raw if r['result'] == 0),
-            "total": len(raw)
+        # 1. Get TOTAL records count directly from the table (doesn't care about columns)
+        resp_total = supabase.table('students_dataset').select('id', count='exact').execute()
+        total_records = resp_total.count or 0
+
+        # 2. Get counts for Pass/Fail distribution (rows where result is defined)
+        resp_pass = supabase.table('students_dataset').select('id', count='exact').eq('result', 1).execute()
+        resp_fail = supabase.table('students_dataset').select('id', count='exact').eq('result', 0).execute()
+        
+        total_p = resp_pass.count or 0
+        total_f = resp_fail.count or 0
+
+        # If we have a watermark, the number of records added SINCE training
+        # is the delta between the table's absolute size and the watermark.
+        untrained_count = 0
+        if trained_size is not None:
+            untrained_count = max(0, total_records - trained_size)
+
+        result = {
+            "total":     total_records,
+            "pass":      total_p,
+            "fail":      total_f,
+            "trained":   trained_size if trained_size is not None else total_records,
+            "untrained": untrained_count
         }
-        _stats_cache["data"] = result
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/reload-models', methods=['POST'])
+def reload_models():
+    """Hot-reload all pkl files so the live server picks up freshly trained models."""
+    reloaded = []
+    for name, filename in MODEL_FILES.items():
+        filepath = os.path.join('models', filename)
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                loaded_models[name] = pickle.load(f)
+            reloaded.append(name)
+            print(f"  [reload] {name} refreshed")
+    return jsonify({"reloaded": reloaded, "count": len(reloaded)})
+
+
 # ─── Startup: pre-load all models before serving requests ────────────────────
+def _preload_models():
+    for name, filename in MODEL_FILES.items():
+        filepath = os.path.join('models', filename)
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                loaded_models[name] = pickle.load(f)
+            print(f"  [preload] {name} ready")
+
 print("[startup] Pre-loading ML models...")
 _preload_models()
 print("[startup] All models loaded. Server ready.")

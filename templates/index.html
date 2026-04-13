@@ -37,10 +37,11 @@
 
     <!-- ══ STAT PILLS ═══════════════════════════════════════════════════════ -->
     <div class="stat-pills" id="statPills">
-        <div class="pill"><i class="fas fa-database"></i> <span id="statTotal">—</span> Students</div>
-        <div class="pill pass-pill"><i class="fas fa-check-circle"></i> <span id="statPass">—</span> Passed</div>
-        <div class="pill fail-pill"><i class="fas fa-times-circle"></i> <span id="statFail">—</span> Failed</div>
-        <div class="pill"><i class="fas fa-robot"></i> 5 Models Trained</div>
+        <div class="pill"><i class="fas fa-database"></i> Total records: <span id="statTotal">—</span></div>
+        <div class="pill models-pill"><i class="fas fa-robot"></i> 5 Models Trained</div>
+        <div class="pill warning-pill hidden" id="pillUntrained">
+            <i class="fas fa-exclamation-circle"></i> <span id="statUntrained">0</span> New Records (Yet to Train)
+        </div>
     </div>
 
     <!-- ══ MODEL CARDS ══════════════════════════════════════════════════════ -->

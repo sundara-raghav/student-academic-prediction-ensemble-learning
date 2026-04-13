@@ -25,13 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initDashboard() {
-    // Run all independent fetches IN PARALLEL — not sequential
+    // Run all independent fetches IN PARALLEL
     await Promise.all([
         fetchModels(),
         fetchFeatureImportance(),
         fetchStats(),
     ]);
     setupFormListener();
+
+    // Live update loop: poll for new Data and Models every 5 seconds
+    setInterval(() => {
+        fetchStats();
+        fetchModels();
+    }, 5000);
 }
 
 /* ─────────────────────────────────────────
@@ -39,7 +45,7 @@ async function initDashboard() {
 ───────────────────────────────────────── */
 async function fetchModels() {
     try {
-        const res = await fetch('/models');
+        const res = await fetch('/models?_t=' + Date.now());
         const models = await res.json();
         renderModelCards(models);
         populateModelSelect(models);
@@ -96,11 +102,19 @@ function populateModelSelect(models) {
 ───────────────────────────────────────── */
 async function fetchStats() {
     try {
-        const res = await fetch('/stats');
+        const res = await fetch('/stats?_t=' + Date.now());
         const d = await res.json();
         document.getElementById('statTotal').textContent = d.total?.toLocaleString() ?? '—';
-        document.getElementById('statPass').textContent  = d.pass?.toLocaleString()  ?? '—';
-        document.getElementById('statFail').textContent  = d.fail?.toLocaleString()  ?? '—';
+        
+        
+        // Show untrained pill if there are new records
+        if (d.untrained && d.untrained > 0) {
+            document.getElementById('statUntrained').textContent = d.untrained;
+            document.getElementById('pillUntrained').classList.remove('hidden');
+        } else {
+            document.getElementById('pillUntrained').classList.add('hidden');
+        }
+
         // Defer dist chart to idle
         scheduleIdle(() => renderDistChart(d));
     } catch (e) {}
