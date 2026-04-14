@@ -1,0 +1,50 @@
+name: Train & Deploy ML Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  train-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Data Setup and Model Training
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          # Ensure dataset is generated 
+          python setup_database.py
+          
+          # Train all models, tune hyperparams, save best to 'models/' 
+          # and upload metrics to Supabase
+          python train_model.py
+
+  deploy-to-render:
+    needs: train-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Trigger Render Deployment
+        run: |
+          echo "Pinging Render Deploy Hook URL..."
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
