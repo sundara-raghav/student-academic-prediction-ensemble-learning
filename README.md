@@ -2,6 +2,9 @@
 
 A full-stack web application that predicts whether a student will "Pass" or "Fail" based on their academic metrics. It utilizes 5 advanced machine learning models (Logistic Regression, Decision Tree, KNN, Random Forest, Gradient Boosting) built with scikit-learn.
 
+🔗 **Live Application:**  
+https://student-academic-prediction-ensemble.onrender.com/
+
 ## Features
 - **🔮 Ensemble Learning Models**: Predict outcomes using 5 distinct trained models.
 - **📈 Data Insights Hub**: Visualizes Pass/Fail distribution, model accuracy comparisons, and feature importance.
@@ -35,3 +38,13 @@ pip install -r requirements.txt
 python app.py
 ```
 *The app will automatically pre-load the serialized ML `.pkl` models and serve the application on http://127.0.0.1:5000*
+
+
+### CI/CD
+- GitHub Actions  
+
+GitHub CI/CD automatically:
+
+- Installs dependencies  
+- Runs workflow checks  
+- Ensures stable builds before deployment 
