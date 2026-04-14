@@ -26,6 +26,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify Secrets
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_KEY }}" ]; then
+            echo "❌ ERROR: One or more Supabase secrets are missing in GitHub Repository Settings."
+            echo "Please go to Settings > Secrets and variables > Actions and add SUPABASE_URL and SUPABASE_KEY."
+            exit 1
+          fi
+          echo "✅ Secrets found, proceeding..."
+
       - name: Run Data Setup and Model Training
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
