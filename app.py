@@ -301,12 +301,19 @@ def reload_models():
 # ─── Startup: pre-load all models + scaler before serving requests ───────────
 def _preload_models():
     global loaded_scaler
+    loaded_count = 0
+    missing = []
+    
     for name, filename in MODEL_FILES.items():
         filepath = os.path.join('models', filename)
         if os.path.exists(filepath):
             with open(filepath, 'rb') as f:
                 loaded_models[name] = pickle.load(f)
             print(f"  [preload] {name} ready")
+            loaded_count += 1
+        else:
+            print(f"  [preload] WARNING: {filename} NOT FOUND")
+            missing.append(name)
 
     scaler_path = os.path.join('models', 'scaler.pkl')
     if os.path.exists(scaler_path):
@@ -315,6 +322,11 @@ def _preload_models():
         print("  [preload] StandardScaler ready")
     else:
         print("  [preload] WARNING: scaler.pkl not found — run train_model.py first")
+        missing.append("StandardScaler")
+
+    print(f"[startup] Models loaded: {loaded_count}/{len(MODEL_FILES)}")
+    if missing:
+        print(f"[startup] MISSING: {', '.join(missing)}")
 
 print("[startup] Pre-loading ML models + scaler...")
 _preload_models()
