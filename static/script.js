@@ -33,11 +33,7 @@ async function initDashboard() {
     ]);
     setupFormListener();
 
-    // Live update loop: poll for new Data and Models every 5 seconds
-    setInterval(() => {
-        fetchStats();
-        fetchModels();
-    }, 5000);
+    // Live update loop removed to prevent console request spam and selection overwrite
 }
 
 /* ─────────────────────────────────────────
@@ -74,8 +70,7 @@ function renderModelCards(models) {
             <h3>${m.model_name}</h3>
             <div class="acc">${m.accuracy.toFixed(1)}<span style="font-size:1rem;font-weight:500;">%</span></div>
             <div class="acc-label">Accuracy</div>
-            <div class="acc-bar"><div class="acc-bar-fill" style="width:${barW}%"></div></div>
-            <button onclick="selectModel('${m.model_name}')">Select Model</button>`;
+            <div class="acc-bar"><div class="acc-bar-fill" style="width:${barW}%"></div></div>`;
         grid.appendChild(div);
     });
 }
@@ -439,7 +434,7 @@ function renderFeatureChart(d) {
             labels: d.labels,
             datasets: [{
                 data: d.data,
-                backgroundColor: ['#4F46E5','#22C55E','#F59E0B','#EC4899','#3B82F6'],
+                backgroundColor: ['#4F46E5','#22C55E','#F59E0B','#EC4899','#3B82F6', '#8B5CF6', '#14B8A6'],
                 borderWidth: 0,
                 hoverOffset: 8,
             }]

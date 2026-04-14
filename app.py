@@ -7,22 +7,29 @@ from flask import Flask, request, jsonify, render_template
 from supabase_config import supabase
 from datetime import datetime
 
-warnings.filterwarnings('ignore', message='X does not have valid feature names')
+warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
 
 MODEL_FILES = {
     "Logistic Regression": "logistic.pkl",
-    "Decision Tree": "decision_tree.pkl",
-    "KNN": "knn.pkl",
-    "Random Forest": "random_forest.pkl",
-    "Gradient Boosting": "gradient_boost.pkl"
+    "Decision Tree":       "decision_tree.pkl",
+    "KNN":                 "knn.pkl",
+    "Random Forest":       "random_forest.pkl",
+    "Gradient Boosting":   "gradient_boost.pkl"
 }
 
-FEATURE_NAMES = ['Attendance', 'Study Hours', 'Internal Marks', 'Assignments', 'Previous GPA']
-BASELINE = [75.0, 5.0, 30.0, 30.0, 7.0]
+# Raw input feature names (displayed in UI)
+UI_FEATURE_NAMES = ['Attendance', 'Study Hours', 'Internal Marks', 'Assignments', 'Previous GPA']
+FEATURE_NAMES = ['Attendance', 'Study Hours', 'Internal Marks',
+                  'Assignments', 'Previous GPA',
+                  'Academic Score', 'Study Efficiency']
 
-loaded_models = {}
+# Baseline values for SHAP-style explanations (raw space)
+BASELINE_RAW = [75.0, 5.0, 30.0, 30.0, 7.0]
+
+loaded_models  = {}
+loaded_scaler  = None   # StandardScaler fitted during training
 
 def get_model(model_name):
     return loaded_models.get(model_name)
@@ -71,18 +78,47 @@ def generate_advice(attendance, study_hours, internal_marks, assignments, previo
 
     return {"urgent": urgent, "tips": tips}
 
-# ─── SHAP-style local explanation ────────────────────────────────────────────
-def compute_shap_like(model, features_arr):
+# ── Feature engineering (mirrors preprocess.py) ──────────────────────────────
+def build_feature_vector(attendance, study_hours, internal_marks,
+                          assignments, previous_gpa) -> np.ndarray:
+    """
+    Reproduce the same feature engineering applied during training:
+      academic_score   = (internal_marks + assignments) / 2
+      study_efficiency = study_hours / max(attendance, 1)
+    Then scale with the fitted StandardScaler.
+    """
+    academic_score   = (internal_marks + assignments) / 2.0
+    study_efficiency = study_hours / max(attendance, 1)
+
+    raw = np.array([[attendance, study_hours, internal_marks,
+                     assignments, previous_gpa,
+                     academic_score, study_efficiency]])
+
+    if loaded_scaler is not None:
+        raw = loaded_scaler.transform(raw)
+
+    return raw
+
+
+# ── SHAP-style local explanation ────────────────────────────────────────────
+def compute_shap_like(model, features_scaled):
+    """Perturb each raw feature one at a time to measure its contribution."""
     if not hasattr(model, 'predict_proba'):
         return [0.0] * len(FEATURE_NAMES)
-    full_proba = model.predict_proba(features_arr)[0][1]
-    contribs = []
-    for i in range(len(FEATURE_NAMES)):
-        perturbed = features_arr[0].copy()
-        perturbed[i] = BASELINE[i]
+    full_proba = model.predict_proba(features_scaled)[0][1]
+    contribs   = []
+    # baseline raw values for the 5 original features
+    for i in range(len(BASELINE_RAW)):
+        b  = BASELINE_RAW[:]
+        # build perturbed vector: swap feature i with its baseline
+        att_p  = b[0] if i == 0 else features_scaled[0][0]  # approximate
+        # simpler: zero-out the scaled dimension
+        perturbed = features_scaled[0].copy()
+        perturbed[i] = 0.0   # 0 in scaled space ≈ mean
         p = model.predict_proba(np.array([perturbed]))[0][1]
         contribs.append(round(float(full_proba - p) * 100, 2))
-    return contribs
+    # return only the first 5 contributions so it aligns with the UI fields
+    return contribs[:5]
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 @app.route('/')
@@ -111,7 +147,9 @@ def predict():
     if not model:
         return jsonify({"error": "Model not found or not loaded"}), 404
 
-    features = np.array([[attendance, study_hours, internal_marks, assignments, previous_gpa]])
+    # Build scaled feature vector (with engineered features)
+    features = build_feature_vector(attendance, study_hours,
+                                    internal_marks, assignments, previous_gpa)
 
     try:
         prediction  = model.predict(features)[0]
@@ -147,7 +185,7 @@ def predict():
             "prediction": result_text, "confidence": round(confidence, 2),
             "pass_prob": round(pass_prob, 2), "fail_prob": round(fail_prob, 2),
             "model_used": model_name,
-            "shap": {"labels": FEATURE_NAMES, "contributions": shap_contribs},
+            "shap": {"labels": UI_FEATURE_NAMES, "contributions": shap_contribs},
             "advice": advice
         })
     except Exception as e:
@@ -178,9 +216,24 @@ def get_feature_importance():
     model = get_model("Random Forest")
     if model and hasattr(model, 'feature_importances_'):
         importances = model.feature_importances_.tolist()
+        # Collapse the 7 importances back to the 5 base features for UI
+        # 0: attendance, 1: study, 2: internal, 3: assignments, 4: gpa, 5: academic_score, 6: study_effic
+        base_importances = importances[:5]
+        # Distribute 'academic_score' to internal_marks (2) and assignments (3)
+        base_importances[2] += importances[5] / 2
+        base_importances[3] += importances[5] / 2
+        # Distribute 'study_efficiency' to attendance (0) and study (1)
+        base_importances[0] += importances[6] / 2
+        base_importances[1] += importances[6] / 2
+        
+        # Normalize back to 1.0 (100%)
+        total = sum(base_importances)
+        if total > 0:
+            base_importances = [i / total for i in base_importances]
     else:
-        importances = [0.2, 0.2, 0.2, 0.2, 0.2]
-    return jsonify({"labels": FEATURE_NAMES, "data": [round(i * 100, 2) for i in importances]})
+        base_importances = [0.2] * len(UI_FEATURE_NAMES)
+        
+    return jsonify({"labels": UI_FEATURE_NAMES, "data": [round(i * 100, 2) for i in base_importances]})
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
@@ -226,6 +279,7 @@ def get_stats():
 @app.route('/reload-models', methods=['POST'])
 def reload_models():
     """Hot-reload all pkl files so the live server picks up freshly trained models."""
+    global loaded_scaler
     reloaded = []
     for name, filename in MODEL_FILES.items():
         filepath = os.path.join('models', filename)
@@ -234,11 +288,19 @@ def reload_models():
                 loaded_models[name] = pickle.load(f)
             reloaded.append(name)
             print(f"  [reload] {name} refreshed")
+
+    scaler_path = os.path.join('models', 'scaler.pkl')
+    if os.path.exists(scaler_path):
+        with open(scaler_path, 'rb') as f:
+            loaded_scaler = pickle.load(f)
+        print("  [reload] scaler refreshed")
+
     return jsonify({"reloaded": reloaded, "count": len(reloaded)})
 
 
-# ─── Startup: pre-load all models before serving requests ────────────────────
+# ─── Startup: pre-load all models + scaler before serving requests ───────────
 def _preload_models():
+    global loaded_scaler
     for name, filename in MODEL_FILES.items():
         filepath = os.path.join('models', filename)
         if os.path.exists(filepath):
@@ -246,7 +308,15 @@ def _preload_models():
                 loaded_models[name] = pickle.load(f)
             print(f"  [preload] {name} ready")
 
-print("[startup] Pre-loading ML models...")
+    scaler_path = os.path.join('models', 'scaler.pkl')
+    if os.path.exists(scaler_path):
+        with open(scaler_path, 'rb') as f:
+            loaded_scaler = pickle.load(f)
+        print("  [preload] StandardScaler ready")
+    else:
+        print("  [preload] WARNING: scaler.pkl not found — run train_model.py first")
+
+print("[startup] Pre-loading ML models + scaler...")
 _preload_models()
 print("[startup] All models loaded. Server ready.")
 

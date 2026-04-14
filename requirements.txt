@@ -6,3 +6,5 @@ pandas
 numpy
 psycopg2-binary
 python-dotenv
+imbalanced-learn
+tabulate
