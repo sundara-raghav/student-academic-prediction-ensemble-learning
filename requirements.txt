@@ -8,3 +8,5 @@ psycopg2-binary
 python-dotenv
 imbalanced-learn
 tabulate
+pytest
+httpx

@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Jupyter / notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# IDE / OS artifacts
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Secrets — never bake into image; inject at runtime
+.env
+
+# Docs / CI not needed at runtime
+README.md
